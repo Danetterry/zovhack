@@ -1,0 +1,266 @@
+﻿using ClickableTransparentOverlay;
+using ImGuiNET;
+using System;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.Numerics;
+using System.Runtime.InteropServices;
+using System.Threading;
+using zovhack;
+
+namespace zovhack
+{
+    public class Renderer : Overlay
+    {
+        private static int SM_CXSCREEN = 0;
+        private static int SM_CYSCREEN = 1;
+        private static int screenWidth = Renderer.GetSystemMetrics(Renderer.SM_CXSCREEN);
+        private static int screenHeight = Renderer.GetSystemMetrics(Renderer.SM_CYSCREEN);
+        public Vector2 screenSize = new Vector2((float)Renderer.screenWidth, (float)Renderer.screenHeight);
+        public ConcurrentQueue<Entity> entities = new ConcurrentQueue<Entity>();
+        private Entity localPlayer = new Entity();
+        private readonly object entityLock = new object();
+        public bool aimBot;
+        public bool aimOnTeam;
+        public bool showWindow = true;
+        public bool enableBox;
+        public bool cornerBox;
+        public bool enableLine;
+        public bool enableName;
+        public bool enableBar;
+        public bool enableWeapon;
+        public bool enableOverlay;
+        public bool enableBypass;
+        public float boxRounding;
+        public float hpRounding;
+        public float boxThick;
+        public float hpThick;
+        public Vector4 enemyColor = new Vector4(1f, 0.0f, 0.0f, 1f);
+        public Vector4 teamColor = new Vector4(0.0f, 1f, 0.0f, 1f);
+        public Vector4 teamNameColor = new Vector4(1f, 1f, 1f, 1f);
+        public Vector4 enemyNameColor = new Vector4(1f, 1f, 1f, 1f);
+        public Vector4 teamHealthColor = new Vector4(0.0f, 1f, 0.0f, 1f);
+        public Vector4 enemyHealthColor = new Vector4(0.0f, 1f, 0.0f, 1f);
+        public Vector4 teamWeaponColor = new Vector4(1f, 1f, 1f, 1f);
+        public Vector4 enemyWeaponColor = new Vector4(1f, 1f, 1f, 1f);
+        public Vector4 enemyLineColor = new Vector4(1f, 0.0f, 0.0f, 1f);
+        public Vector4 teamLineColor = new Vector4(0.0f, 1f, 0.0f, 1f);
+        private string fontPath = "C:\\Windows\\Fonts\\verdana.ttf";
+        private ImDrawListPtr drawList;
+
+        [DllImport("user32.dll")]
+        private static extern int GetSystemMetrics(int nIndex);
+
+        [DllImport("user32.dll")]
+        private static extern short GetAsyncKeyState(int vKey);
+
+        protected override void Render()
+        {
+            ImGuiStylePtr style = ImGui.GetStyle();
+            style.WindowRounding = 2f;
+            style.ChildRounding = 2f;
+            style.FrameRounding = 2f;
+            style.PopupRounding = 2f;
+            style.ScrollbarRounding = 4f;
+            style.GrabRounding = 2f;
+            style.TabRounding = 4f;
+            this.ReplaceFont(this.fontPath, 16, FontGlyphRangeType.Cyrillic);
+            if (this.enableOverlay)
+            {
+                ImGui.SetNextWindowBgAlpha(0.7f);
+                ImGui.SetNextWindowPos(new Vector2(10f, 10f));
+                ImGui.Begin("overlay", ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.NoInputs | ImGuiWindowFlags.NoMove | ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoBringToFrontOnFocus);
+                ImGui.Text("KneeHack v0.29");
+                ImGui.Text("Compilation Date: 6/29/2024");
+                ImGui.Separator();
+                ImGui.Text("Current Date: " + DateTime.Now.ToString());
+            }
+            if (Renderer.GetAsyncKeyState(45) < (short)0)
+            {
+                this.showWindow = !this.showWindow;
+                Thread.Sleep(200);
+            }
+            if (this.showWindow)
+            {
+                ImGui.Begin("ZovHack v1.0");
+                if (ImGui.BeginTabBar("Tabs"))
+                {
+                    if (ImGui.BeginTabItem("Main"))
+                    {
+                        ImGui.Text("Welcome to ZovHack - External CS2 cheat.");
+                        ImGui.Text("Maked by okt, updated by Danetterry");
+                        ImGui.TextDisabled("To hide/open the menu press 'Insert'");
+                        ImGui.TextDisabled("Нехуй время терять надо панчи искать");
+                        ImGui.EndTabItem();
+                    }
+                    if (ImGui.BeginTabItem("Aimbot (broken)"))
+                    {
+                        ImGui.Checkbox("Enable", ref this.aimBot);
+                        ImGui.Checkbox("Aim on team", ref this.aimOnTeam);
+                        ImGui.EndTabItem();
+                    }
+                    if (ImGui.BeginTabItem("Visuals"))
+                    {
+                        ImGui.Checkbox("Box [...]", ref this.enableBox);
+                        ImGui.SameLine();
+                        if (ImGui.BeginPopupContextItem("##Box"))
+                        {
+                            ImGui.Checkbox("Corner", ref this.cornerBox);
+                            ImGui.EndPopup();
+                        }
+                        ImGui.SameLine(ImGui.GetWindowWidth() - 65f);
+                        ImGui.ColorEdit4("Box Enemy Color", ref this.enemyColor, ImGuiColorEditFlags.NoInputs | ImGuiColorEditFlags.NoLabel);
+                        ImGui.SameLine();
+                        ImGui.ColorEdit4("Box Team Color", ref this.teamColor, ImGuiColorEditFlags.NoInputs | ImGuiColorEditFlags.NoLabel);
+                        ImGui.Checkbox("Line", ref this.enableLine);
+                        ImGui.SameLine(ImGui.GetWindowWidth() - 65f);
+                        ImGui.ColorEdit4("Line Enemy Color", ref this.enemyLineColor, ImGuiColorEditFlags.NoInputs | ImGuiColorEditFlags.NoLabel);
+                        ImGui.SameLine();
+                        ImGui.ColorEdit4("Line Team Color", ref this.teamLineColor, ImGuiColorEditFlags.NoInputs | ImGuiColorEditFlags.NoLabel);
+                        ImGui.Checkbox("HP Bar", ref this.enableBar);
+                        ImGui.SameLine(ImGui.GetWindowWidth() - 65f);
+                        ImGui.ColorEdit4("HP Enemy Color", ref this.enemyHealthColor, ImGuiColorEditFlags.NoInputs | ImGuiColorEditFlags.NoLabel);
+                        ImGui.SameLine();
+                        ImGui.ColorEdit4("HP Team Color", ref this.teamHealthColor, ImGuiColorEditFlags.NoInputs | ImGuiColorEditFlags.NoLabel);
+                        ImGui.Checkbox("Name", ref this.enableName);
+                        ImGui.SameLine();
+                        ImGui.SameLine(ImGui.GetWindowWidth() - 65f);
+                        ImGui.ColorEdit4("Name Enemy Color", ref this.enemyNameColor, ImGuiColorEditFlags.NoInputs | ImGuiColorEditFlags.NoLabel);
+                        ImGui.SameLine();
+                        ImGui.ColorEdit4("Name Team Color", ref this.teamNameColor, ImGuiColorEditFlags.NoInputs | ImGuiColorEditFlags.NoLabel);
+                        ImGui.Checkbox("Weapon", ref this.enableWeapon);
+                        ImGui.SameLine();
+                        ImGui.SameLine(ImGui.GetWindowWidth() - 65f);
+                        ImGui.ColorEdit4("Weapon Enemy Color", ref this.enemyWeaponColor, ImGuiColorEditFlags.NoInputs | ImGuiColorEditFlags.NoLabel);
+                        ImGui.SameLine();
+                        ImGui.ColorEdit4("Weapon Team Color", ref this.teamWeaponColor, ImGuiColorEditFlags.NoInputs | ImGuiColorEditFlags.NoLabel);
+                        ImGui.EndTabItem();
+                    }
+                    if (ImGui.BeginTabItem("Misc"))
+                    {
+                        ImGui.Text("Rounding");
+                        ImGui.SliderFloat("Box", ref this.boxRounding, 0.0f, 10f);
+                        ImGui.SliderFloat("HP Bar", ref this.hpRounding, 0.0f, 10f);
+                        ImGui.Separator();
+                        ImGui.Checkbox("Overlay", ref this.enableOverlay);
+                        ImGui.Separator();
+                        if (ImGui.Button("Unhook"))
+                            Environment.Exit(0);
+                        ImGui.EndTabItem();
+                    }
+                    ImGui.EndTabBar();
+                }
+            }
+            this.DrawOverlay(this.screenSize);
+            this.drawList = ImGui.GetWindowDrawList();
+            foreach (Entity entity in this.entities)
+            {
+                if (this.enableWeapon)
+                    this.DrawWeapons(entity);
+                if (this.enableName)
+                    this.DrawName(entity, 16);
+                if (this.enableBox)
+                {
+                    if (this.cornerBox)
+                        this.DrawCornerBox(entity);
+                    else
+                        this.DrawBox(entity);
+                }
+                if (this.enableBar && EntityOnScreen(entity))
+                    this.DrawHealth(entity);
+                if (this.enableLine)
+                    this.DrawLine(entity);
+            }
+            ImGui.End();
+
+            bool EntityOnScreen(Entity entity)
+            {
+                return (double)entity.position2D.X > 0.0 && (double)entity.position2D.Y < (double)this.screenSize.X && (double)entity.position2D.Y > 0.0 && (double)entity.position2D.Y < (double)this.screenSize.Y;
+            }
+        }
+
+        private void DrawName(Entity entity, int yOffset)
+        {
+            Vector2 vector2 = ImGui.CalcTextSize(entity.name);
+            this.drawList.AddText(new Vector2(entity.viewPosition2D.X - vector2.X / 2f, entity.viewPosition2D.Y - (float)yOffset), ImGui.ColorConvertFloat4ToU32(this.localPlayer.team == entity.team ? this.teamNameColor : this.enemyNameColor), entity.name ?? "");
+        }
+
+        private void DrawWeapons(Entity entity)
+        {
+            Vector2 vector2 = ImGui.CalcTextSize(entity.currentWeaponName);
+            this.drawList.AddText(new Vector2(entity.viewPosition2D.X - vector2.X / 2f, entity.position2D.Y), ImGui.ColorConvertFloat4ToU32(this.localPlayer.team == entity.team ? this.teamWeaponColor : this.enemyWeaponColor), entity.currentWeaponName ?? "");
+        }
+
+        private void DrawBox(Entity entity)
+        {
+            float num = entity.position2D.Y - entity.viewPosition2D.Y;
+            this.drawList.AddRect(new Vector2(entity.viewPosition2D.X - num / 3f, entity.viewPosition2D.Y), new Vector2(entity.position2D.X + num / 3f, entity.viewPosition2D.Y + num), ImGui.ColorConvertFloat4ToU32(this.localPlayer.team == entity.team ? this.teamColor : this.enemyColor), this.boxRounding);
+        }
+
+        private void DrawCornerBox(Entity entity)
+        {
+            float num1 = entity.position2D.Y - entity.viewPosition2D.Y;
+            Vector2 vector2_1 = new Vector2(entity.viewPosition2D.X - num1 / 3f, entity.viewPosition2D.Y);
+            Vector2 vector2_2 = new Vector2(entity.position2D.X + num1 / 3f, entity.viewPosition2D.Y + num1);
+            Vector4 @in = this.localPlayer.team == entity.team ? this.teamColor : this.enemyColor;
+            float x1 = vector2_1.X;
+            float x2 = vector2_2.X;
+            float y1 = vector2_1.Y;
+            float y2 = vector2_2.Y;
+            float num2 = (float)Math.Floor((double)Math.Abs(x1 - x2) / 4.0);
+            float num3 = (float)Math.Floor((double)Math.Abs(y1 - y2) / 4.0);
+            this.drawList.AddLine(new Vector2(x1 - 0.5f, y2), new Vector2((float)((double)x1 + (double)num2 + 0.5), y2), ImGui.ColorConvertFloat4ToU32(@in), this.boxThick);
+            this.drawList.AddLine(new Vector2((float)((double)x2 - (double)num2 - 0.5), y2), new Vector2(x2 + 0.5f, y2), ImGui.ColorConvertFloat4ToU32(@in), this.boxThick);
+            this.drawList.AddLine(new Vector2((float)((double)x1 + (double)num2 + 0.5), y1), new Vector2(x1 - 0.5f, y1), ImGui.ColorConvertFloat4ToU32(@in), this.boxThick);
+            this.drawList.AddLine(new Vector2(x2 + 0.5f, y1), new Vector2((float)((double)x2 - (double)num2 - 0.5), y1), ImGui.ColorConvertFloat4ToU32(@in), this.boxThick);
+            this.drawList.AddLine(new Vector2(x1, y2 + 0.5f), new Vector2(x1, (float)((double)y2 - (double)num3 - 0.5)), ImGui.ColorConvertFloat4ToU32(@in), this.boxThick);
+            this.drawList.AddLine(new Vector2(x1, (float)((double)y1 + (double)num3 + 0.5)), new Vector2(x1, y1 - 0.5f), ImGui.ColorConvertFloat4ToU32(@in), this.boxThick);
+            this.drawList.AddLine(new Vector2(x2, y1 - 0.5f), new Vector2(x2, (float)((double)y1 + (double)num3 + 0.5)), ImGui.ColorConvertFloat4ToU32(@in), this.boxThick);
+            this.drawList.AddLine(new Vector2(x2, (float)((double)y2 - (double)num3 - 0.5)), new Vector2(x2, y2 + 0.5f), ImGui.ColorConvertFloat4ToU32(@in), this.boxThick);
+        }
+
+        private void DrawLine(Entity entity)
+        {
+            if ((double)entity.position2D.X == -99.0 || (double)entity.position2D.Y == -99.0)
+                return;
+            Vector4 @in = this.localPlayer.team == entity.team ? this.teamLineColor : this.enemyLineColor;
+            this.drawList.AddLine(new Vector2(this.screenSize.X / 2f, this.screenSize.Y / 2f), entity.position2D, ImGui.ColorConvertFloat4ToU32(@in));
+            if (!(this.cornerBox | !this.enableBox))
+                return;
+            this.drawList.AddCircle(entity.position2D, 2f, ImGui.ColorConvertFloat4ToU32(@in));
+        }
+
+        private void DrawHealth(Entity entity)
+        {
+            float num1 = entity.position2D.Y - entity.viewPosition2D.Y;
+            float x = entity.viewPosition2D.X - num1 / 3f;
+            float num2 = (float)(0.079999998211860657 * ((double)(entity.position2D.X + num1 / 3f) - (double)x));
+            float num3 = num1 * ((float)entity.health / 100f);
+            this.drawList.AddRectFilled(new Vector2(x - num2, entity.position2D.Y - num3), new Vector2(x, entity.position2D.Y), ImGui.ColorConvertFloat4ToU32(this.localPlayer.team == entity.team ? this.teamHealthColor : this.enemyHealthColor), this.hpRounding);
+        }
+
+        public void UpdateEntities(IEnumerable<Entity> newEntities)
+        {
+            this.entities = new ConcurrentQueue<Entity>(newEntities);
+        }
+
+        public Entity GetLocalPlayer()
+        {
+            lock (this.entityLock)
+                return this.localPlayer;
+        }
+
+        public void UpdateLocalPlayer(Entity newEntity)
+        {
+            lock (this.entityLock)
+                this.localPlayer = newEntity;
+        }
+
+        private void DrawOverlay(Vector2 screensize)
+        {
+            ImGui.SetNextWindowSize(screensize);
+            ImGui.SetNextWindowPos(new Vector2(0.0f, 0.0f));
+            ImGui.Begin("espoverlay", ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.NoInputs | ImGuiWindowFlags.NoMove | ImGuiWindowFlags.NoScrollWithMouse | ImGuiWindowFlags.NoBackground | ImGuiWindowFlags.NoBringToFrontOnFocus);
+        }
+    }
+}
