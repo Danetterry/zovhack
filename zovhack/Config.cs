@@ -64,5 +64,25 @@ namespace zovhack
 
             return JsonConvert.DeserializeObject<Parameters>(contents);
         }
+
+        public string[] GetFilesAndFolders(string folderPath)
+        {
+            string[] files = Directory.GetFiles(folderPath);
+            string[] directories = Directory.GetDirectories(folderPath);
+
+            string[] allItems = new string[files.Length + directories.Length];
+
+            for (int i = 0; i < files.Length; i++)
+            {
+                allItems[i] = Path.GetFileNameWithoutExtension(files[i]);
+            }
+
+            for (int i = 0; i < directories.Length; i++)
+            {
+                allItems[files.Length + i] = Path.GetFileName(directories[i]);
+            }
+
+            return allItems;
+        }
     }
 }
