@@ -5,6 +5,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Numerics;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Threading;
 using zovhack;
 
@@ -12,6 +13,9 @@ namespace zovhack
 {
     public class Renderer : Overlay
     {
+        public Renderer() : base(screenWidth, screenHeight) { }
+
+
         private static int SM_CXSCREEN = 0;
         private static int SM_CYSCREEN = 1;
         private static int screenWidth = Renderer.GetSystemMetrics(Renderer.SM_CXSCREEN);
@@ -46,6 +50,7 @@ namespace zovhack
         public Vector4 enemyLineColor = new Vector4(1f, 0.0f, 0.0f, 1f);
         public Vector4 teamLineColor = new Vector4(0.0f, 1f, 0.0f, 1f);
         private string fontPath = "C:\\Windows\\Fonts\\verdana.ttf";
+        public string configField = "config";
         private ImDrawListPtr drawList;
 
         [DllImport("user32.dll")]
@@ -70,7 +75,7 @@ namespace zovhack
                 ImGui.SetNextWindowBgAlpha(0.7f);
                 ImGui.SetNextWindowPos(new Vector2(10f, 10f));
                 ImGui.Begin("overlay", ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.NoInputs | ImGuiWindowFlags.NoMove | ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoBringToFrontOnFocus);
-                ImGui.Text("KneeHack v0.29");
+                ImGui.Text("ZobHack v0.29");
                 ImGui.Text("Compilation Date: 6/29/2024");
                 ImGui.Separator();
                 ImGui.Text("Current Date: " + DateTime.Now.ToString());
@@ -139,13 +144,100 @@ namespace zovhack
                     if (ImGui.BeginTabItem("Misc"))
                     {
                         ImGui.Text("Rounding");
+
                         ImGui.SliderFloat("Box", ref this.boxRounding, 0.0f, 10f);
                         ImGui.SliderFloat("HP Bar", ref this.hpRounding, 0.0f, 10f);
+
                         ImGui.Separator();
+
                         ImGui.Checkbox("Overlay", ref this.enableOverlay);
+
                         ImGui.Separator();
+
+                        if (ImGui.Button("Load Config"))
+                        {
+                            Config config = new Config();
+                            Parameters parameters = config.Load(configField);
+                            aimBot = parameters.aimBot;
+                            aimOnTeam = parameters.aimOnTeam;
+                            showWindow = parameters.showWindow;
+                            enableBox = parameters.enableBox;
+                            cornerBox = parameters.cornerBox;
+                            enableLine = parameters.enableLine;
+                            enableName = parameters.enableName;
+                            enableBar = parameters.enableBar;
+                            enableWeapon = parameters.enableWeapon;
+                            enableOverlay = parameters.enableOverlay;
+                            enableBypass = parameters.enableBypass;
+                            boxRounding = parameters.boxRounding;
+                            hpRounding = parameters.hpRounding;
+                            boxThick = parameters.boxThick;
+                            hpThick = parameters.hpThick;
+                            enemyColor = parameters.enemyColor;
+                            teamColor = parameters.teamColor;
+                            teamNameColor = parameters.teamNameColor;
+                            enemyNameColor = parameters.enemyNameColor;
+                            teamHealthColor = parameters.teamHealthColor;
+                            enemyHealthColor = parameters.enemyHealthColor;
+                            teamWeaponColor = parameters.teamWeaponColor;
+                            enemyWeaponColor = parameters.enemyWeaponColor;
+                            enemyLineColor = parameters.enemyLineColor;
+                            teamLineColor = parameters.teamLineColor;
+                        }
+
+                        ImGui.SameLine();
+
+                        if (ImGui.Button("Save Config"))
+                        {
+                            Parameters parameters = new Parameters();
+                            parameters.aimBot = aimBot;
+                            parameters.aimOnTeam = aimOnTeam;
+                            parameters.showWindow = showWindow;
+                            parameters.enableBox = enableBox;
+                            parameters.cornerBox = cornerBox;
+                            parameters.enableLine = enableLine;
+                            parameters.enableName = enableName;
+                            parameters.enableBar = enableBar;
+                            parameters.enableWeapon = enableWeapon;
+                            parameters.enableOverlay = enableOverlay;
+                            parameters.enableBypass = enableBypass;
+                            parameters.boxRounding = boxRounding;
+                            parameters.hpRounding = hpRounding;
+                            parameters.boxThick = boxThick;
+                            parameters.hpThick = hpThick;
+                            parameters.enemyColor = enemyColor;
+                            parameters.teamColor = teamColor;
+                            parameters.teamNameColor = teamNameColor;
+                            parameters.enemyNameColor = enemyNameColor;
+                            parameters.teamHealthColor = teamHealthColor;
+                            parameters.enemyHealthColor = enemyHealthColor;
+                            parameters.teamWeaponColor = teamWeaponColor;
+                            parameters.enemyWeaponColor = enemyWeaponColor;
+                            parameters.enemyLineColor = enemyLineColor;
+                            parameters.teamLineColor = teamLineColor;
+                            Config config = new Config();
+                            config.Save(parameters, configField);
+                        }
+
+                        ImGui.SameLine();
+
+                        ImGui.InputText("##input", ref configField, 32);
+
+                        ImGui.SameLine();
+
+                        if (ImGui.Button("▼"))
+                            ImGui.OpenPopup("ConfigPopup");
+
+                        if (ImGui.BeginPopup("ConfigPopup"))
+                        {
+                            ImGui.EndPopup();
+                        }
+
+                        ImGui.Separator();
+
                         if (ImGui.Button("Unhook"))
                             Environment.Exit(0);
+
                         ImGui.EndTabItem();
                     }
                     ImGui.EndTabBar();
@@ -260,7 +352,7 @@ namespace zovhack
         {
             ImGui.SetNextWindowSize(screensize);
             ImGui.SetNextWindowPos(new Vector2(0.0f, 0.0f));
-            ImGui.Begin("espoverlay", ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.NoInputs | ImGuiWindowFlags.NoMove | ImGuiWindowFlags.NoScrollWithMouse | ImGuiWindowFlags.NoBackground | ImGuiWindowFlags.NoBringToFrontOnFocus);
+            ImGui.Begin("espoverlay", ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.NoInputs | ImGuiWindowFlags.NoScrollWithMouse | ImGuiWindowFlags.NoBackground | ImGuiWindowFlags.NoBringToFrontOnFocus); // | ImGuiWindowFlags.NoMove
         }
     }
 }
